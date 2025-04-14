@@ -1,2 +1,2 @@
-conv2d
-conv2d.o
+conv2d/conv2d
+conv2d/conv2d.o
