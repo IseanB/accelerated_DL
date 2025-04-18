@@ -11,6 +11,8 @@
 #define MAX_THREAD_PER_BLOCK 1024
 #define IMAGE_WIDTH 224
 #define MAX_SHARED_FLT_ELEMENTS 8192
+
+#define TILE_WIDTH 16
 // warp size = 32, max sm shared memory is 64 KB or ~ 8192 
 
 // __global__ void conv2d(const float* input, const float* output, const int Nx, const int Ny,
@@ -124,6 +126,41 @@ void runCudnnConv2D(
     cudnnDestroy(cudnn);
 }
 
+__global__ void conv2d_naive(
+    const float* __restrict__ input,    // [Ni × inH × inW]
+    const float* __restrict__ kernel,   // [Nn × Ni × K_h × K_w]
+    float* output,                      // [Nn × outH × outW]
+    int Ni, int inH, int inW,
+    int Nn,
+    int K_h, int K_w,
+    int pad, int stride)
+{
+    int out_x = blockIdx.x * blockDim.x + threadIdx.x;
+    int out_y = blockIdx.y * blockDim.y + threadIdx.y;
+    int out_c = blockIdx.z;
+
+    int outW = (inW - K_w + 2*pad)/stride + 1;
+    int outH = (inH - K_h + 2*pad)/stride + 1;
+
+    if (out_x >= outW || out_y >= outH || out_c >= Nn) return;
+
+    float sum = 0.0f;
+    for (int in_c = 0; in_c < Ni; ++in_c) {
+        for (int ky = 0; ky < K_h; ++ky) {
+            for (int kx = 0; kx < K_w; ++kx) {
+                int in_x = out_x*stride + kx - pad;
+                int in_y = out_y*stride + ky - pad;
+                if (in_x>=0 && in_x<inW && in_y>=0 && in_y<inH) {
+                    float v = input[(in_c*inH + in_y)*inW + in_x];
+                    float w = kernel[((out_c*Ni + in_c)*K_h + ky)*K_w + kx];
+                    sum += v*w;
+                }
+            }
+        }
+    }
+    output[(out_c*outH + out_y)*outW + out_x] = sum;
+}
+
 int main(){
     /*
     Parameters
@@ -180,22 +217,23 @@ int main(){
         0, 1            // padding, stride
     );
 
+    
+
+
+    // float *d_kernel_CUSTOM, *d_in_CUSTOM, *d_out_CUSTOM;
+
+    // cudaMalloc(&d_in_CUSTOM, in_size);
+    // cudaMalloc(&d_out_CUSTOM, out_size);
+    // cudaMalloc(&d_kernel_CUSTOM, kernel_size);
+
+    // cudaMemcpy(d_in_CUSTOM, h_in, in_size, cudaMemcpyHostToDevice);
+    // cudaMemcpy(d_kernel_CUSTOM, h_kernel, kernel_size, cudaMemcpyHostToDevice);
+
+    
     /* 
     Custom Kernel Init. and Function Call
     */
-
-
-    float *d_kernel_CUSTOM, *d_in_CUSTOM, *d_out_CUSTOM;
-
-    cudaMalloc(&d_in_CUSTOM, in_size);
-    cudaMalloc(&d_out_CUSTOM, out_size);
-    cudaMalloc(&d_kernel_CUSTOM, kernel_size);
-
-    cudaMemcpy(d_in_CUSTOM, h_in, in_size, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_kernel_CUSTOM, h_kernel, kernel_size, cudaMemcpyHostToDevice);
-
-    
-
+    //insert here
 
 
    
